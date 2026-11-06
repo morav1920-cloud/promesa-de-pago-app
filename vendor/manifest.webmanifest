@@ -1,0 +1,26 @@
+{
+  "name": "Promesa de Pago",
+  "short_name": "Promesa de Pago",
+  "description": "Captura de promesas de pago en cobranza de campo. Funciona sin conexión.",
+  "lang": "es-MX",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0F2A43",
+  "theme_color": "#0F2A43",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

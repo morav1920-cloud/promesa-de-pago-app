@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0F2A43">
+  <meta name="description" content="Captura de promesas de pago en cobranza de campo. Funciona sin conexión.">
+  <title>Promesa de Pago</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ============ BARRA SUPERIOR ============ -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <img src="icon-192.png" alt="" class="topbar-logo" width="28" height="28">
+      <span class="topbar-title">Promesa de Pago</span>
+    </div>
+    <div class="topbar-actions">
+      <span id="badge-conexion" class="badge badge-online" role="status">Con señal</span>
+      <button id="btn-cambiar-rol" class="btn btn-ghost btn-sm" type="button" hidden>Cambiar rol</button>
+    </div>
+  </header>
+
+  <main id="app">
+
+    <!-- ============ VISTA: LOGIN (selector de rol) ============ -->
+    <section id="view-login" class="view view-login">
+      <div class="login-hero">
+        <h1>¿Cómo entras hoy?</h1>
+        <p>Sin contraseñas. Elige tu rol y listo.</p>
+      </div>
+
+      <label class="demo-toggle">
+        <input type="checkbox" id="toggle-seed">
+        <span class="demo-toggle-track" aria-hidden="true"><span class="demo-toggle-thumb"></span></span>
+        Cargar datos de ejemplo para demostración
+      </label>
+
+      <div class="role-cards">
+        <button class="role-card" id="btn-rol-gestor" type="button">
+          <span class="role-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </span>
+          <span class="role-card-name">Soy Gestor</span>
+          <span class="role-card-desc">Capturo promesas en campo</span>
+        </button>
+
+        <button class="role-card" id="btn-rol-supervisor" type="button">
+          <span class="role-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx="0.5"/><rect x="12" y="8" width="3" height="10" rx="0.5"/><rect x="17" y="5" width="3" height="13" rx="0.5"/></svg>
+          </span>
+          <span class="role-card-name">Soy Supervisor</span>
+          <span class="role-card-desc">Veo el embudo y exporto el cierre</span>
+        </button>
+      </div>
+
+      <div id="selector-gestor" class="selector-gestor" hidden>
+        <h2>¿Quién eres?</h2>
+        <div id="lista-gestores-login" class="gestor-buttons"><!-- se llena por JS --></div>
+      </div>
+
+      <div class="login-links">
+        <button id="btn-nuevo-usuario" class="link-discreto" type="button">Agregar nuevo usuario</button>
+        <button id="btn-reseed" class="link-discreto" type="button">Restablecer datos de demo</button>
+      </div>
+    </section>
+
+    <!-- ============ VISTA: GESTOR ============ -->
+    <section id="view-gestor" class="view view-gestor" hidden>
+      <div class="gestor-header">
+        <div>
+          <h1 id="gestor-nombre">—</h1>
+          <p id="gestor-zona" class="gestor-zona">—</p>
+        </div>
+        <span id="badge-pendientes-gestor" class="badge badge-amber" hidden>0 por enviar</span>
+      </div>
+
+      <!-- Banner proactivo de vencimientos -->
+      <div id="alerta-vencimientos" class="alerta-vencimientos" hidden role="button" tabindex="0">
+        <span id="alerta-vencimientos-texto"></span>
+        <span class="alerta-flecha" aria-hidden="true">→</span>
+      </div>
+
+      <!-- Resumen del día del gestor -->
+      <div class="chips-resumen">
+        <div class="chip-resumen chip-aviso">
+          <span class="chip-numero" id="chip-cobrar-num">0</span>
+          <span class="chip-texto">por cobrar hoy · <strong id="chip-cobrar-monto">$0</strong></span>
+        </div>
+        <div class="chip-resumen chip-ok">
+          <span class="chip-numero" id="chip-capturadas-num">0</span>
+          <span class="chip-texto">capturadas hoy</span>
+        </div>
+      </div>
+
+      <!-- Aviso de modo edición -->
+      <div id="aviso-edicion" class="aviso-edicion" hidden>
+        Editando una promesa capturada. <button type="button" id="btn-cancelar-edicion" class="link-discreto">Cancelar edición</button>
+      </div>
+
+      <!-- Formulario: Nueva Promesa de Pago -->
+      <form id="form-promesa" class="card form-promesa" novalidate>
+        <h2 class="card-title">Nueva Promesa de Pago</h2>
+
+        <div class="field">
+          <label for="f-nombre">Nombre del cliente</label>
+          <input type="text" id="f-nombre" name="nombre_deudor" maxlength="80"
+                 placeholder="Nombre del cliente" autocomplete="off" required>
+        </div>
+
+        <div class="field">
+          <label for="f-monto">Monto prometido</label>
+          <div class="input-money">
+            <span class="input-money-sign">$</span>
+            <input type="number" id="f-monto" name="monto_prometido" min="1" step="0.01"
+                   inputmode="decimal" placeholder="0.00" required>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="f-fecha">¿Cuándo paga?</label>
+          <input type="date" id="f-fecha" name="fecha_pago" required>
+        </div>
+
+        <div class="field">
+          <label for="f-canal">¿Cómo quedaron?</label>
+          <select id="f-canal" name="canal_contacto" required>
+            <option value="" disabled selected>Elige el canal</option>
+            <option value="WhatsApp">WhatsApp</option>
+            <option value="Llamada">Llamada</option>
+            <option value="SMS">SMS</option>
+            <option value="Visita domiciliaria">Visita domiciliaria</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+
+        <details class="field-opcional" id="detalles-opcionales">
+          <summary>Teléfono, observaciones y foto (opcional)</summary>
+          <div class="field">
+            <label for="f-telefono">Teléfono del cliente (10 dígitos)</label>
+            <input type="tel" id="f-telefono" name="telefono" inputmode="numeric"
+                   maxlength="10" placeholder="55 0000 0000" autocomplete="off">
+          </div>
+          <textarea id="f-notas" name="notas" maxlength="200" rows="2"
+                    placeholder="Observaciones (opcional)"></textarea>
+          <label class="btn btn-foto btn-block" for="f-foto">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Adjuntar foto del comprobante
+          </label>
+          <input type="file" id="f-foto" accept="image/*" capture="environment" hidden>
+          <div id="foto-preview-wrap" class="foto-preview-wrap" hidden>
+            <img id="foto-preview" class="foto-preview" alt="Vista previa del comprobante">
+            <button type="button" id="btn-quitar-foto" class="btn btn-ghost btn-sm">Quitar foto</button>
+          </div>
+        </details>
+
+        <p id="form-error" class="form-error" role="alert" hidden></p>
+
+        <button type="submit" id="btn-guardar" class="btn btn-primary btn-block btn-lg">Guardar Promesa</button>
+      </form>
+
+      <!-- Lista con pestañas: operación del día vs. capturas del día -->
+      <section class="lista-seccion">
+        <div class="tabs-gestor" role="tablist" aria-label="Listas de promesas">
+          <button class="tab-gestor activo" id="tab-cobrar" role="tab" aria-selected="true" type="button">
+            Por Cobrar Hoy <span class="tab-count" id="count-cobrar">0</span>
+          </button>
+          <button class="tab-gestor" id="tab-hoy" role="tab" aria-selected="false" type="button">
+            Capturadas Hoy <span class="tab-count" id="count-hoy">0</span>
+          </button>
+        </div>
+        <div id="lista-promesas" class="lista-promesas"><!-- se llena por JS --></div>
+        <p id="lista-vacia" class="lista-vacia" hidden></p>
+      </section>
+    </section>
+
+    <!-- ============ VISTA: SUPERVISOR ============ -->
+    <section id="view-supervisor" class="view view-supervisor" hidden>
+      <div class="supervisor-header">
+        <div>
+          <h1>Embudo de Promesas del Día</h1>
+          <p class="supervisor-sub" id="fecha-hoy-sup">—</p>
+        </div>
+        <div class="supervisor-header-actions">
+          <span id="badge-pendientes-sup" class="badge badge-amber" hidden>0 por enviar</span>
+          <button id="btn-resumen-wsp" class="btn btn-wsp" type="button">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21 5.46 0 9.91-4.45 9.91-9.91C21.95 6.45 17.5 2 12.04 2zm0 18.13c-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.26 8.26 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24 4.54 0 8.24 3.7 8.24 8.24 0 4.55-3.7 8.24-8.24 8.24zm4.52-6.16c-.25-.13-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.24-.64.8-.78.97-.14.16-.29.18-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.02-.38.11-.51.11-.11.25-.29.37-.43.13-.15.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.13-.56-1.34-.76-1.84-.2-.48-.41-.42-.56-.43h-.48c-.17 0-.43.06-.66.31-.22.25-.86.85-.86 2.07 0 1.22.89 2.4 1.01 2.56.13.17 1.75 2.67 4.23 3.74.59.26 1.05.41 1.41.52.59.19 1.13.16 1.56.1.48-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.16-.48-.29z"/></svg>
+            Resumen WhatsApp
+          </button>
+          <button id="btn-exportar" class="btn btn-primary" type="button">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar Reporte de Cierre
+          </button>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <span class="kpi-label">Promesas capturadas hoy</span>
+          <span class="kpi-valor" id="kpi-capturadas">0</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Monto total prometido</span>
+          <span class="kpi-valor" id="kpi-monto">$0</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Tasa de Captura Efectiva (TCE)</span>
+          <span class="kpi-valor" id="kpi-tce">0%</span>
+          <span class="kpi-meta" id="kpi-tce-meta">Meta: mayor a 85%</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Índice de Certeza de Cumplimiento (ICC)</span>
+          <span class="kpi-valor" id="kpi-icc">0%</span>
+          <span class="kpi-meta">Lo cobrado vs. lo prometido</span>
+        </div>
+      </div>
+
+      <!-- Gráfico de barras por estado -->
+      <div class="card chart-card">
+        <h2 class="card-title">Promesas por estado</h2>
+        <div id="chart-estados" class="chart-estados"><!-- se llena por JS --></div>
+      </div>
+
+      <!-- Tabla detalle -->
+      <div class="card tabla-card">
+        <div class="tabla-toolbar">
+          <h2 class="card-title">Detalle de Promesas por Gestor</h2>
+          <div class="tabla-filtros">
+            <select id="filtro-gestor" class="input-buscar" aria-label="Filtrar por gestor">
+              <option value="">Todos los gestores</option>
+            </select>
+            <input type="search" id="buscar-promesa" class="input-buscar"
+                   placeholder="Buscar por cliente o gestor…" aria-label="Buscar promesa">
+          </div>
+        </div>
+        <div class="tabla-wrap">
+          <table class="tabla">
+            <thead>
+              <tr>
+                <th>Gestor</th>
+                <th>Deudor</th>
+                <th class="num">Monto</th>
+                <th>Fecha compromiso</th>
+                <th>Canal</th>
+                <th>Estado</th>
+                <th class="num">Días de atraso</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-body"><!-- se llena por JS --></tbody>
+          </table>
+          <p id="tabla-vacia" class="lista-vacia" hidden>No hay promesas que coincidan con la búsqueda.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ MODAL: DETALLE DE PROMESA ============ -->
+  <div id="modal-detalle" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
+      <div class="modal-header">
+        <h2 id="modal-titulo">Detalle de la promesa</h2>
+        <button id="modal-cerrar" class="btn btn-ghost btn-icon" type="button" aria-label="Cerrar detalle">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div id="modal-contenido" class="modal-contenido"><!-- se llena por JS --></div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: NUEVO USUARIO ============ -->
+  <div id="modal-usuario" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-usuario-titulo">
+      <div class="modal-header">
+        <h2 id="modal-usuario-titulo">Agregar nuevo usuario</h2>
+        <button id="modal-usuario-cerrar" class="btn btn-ghost btn-icon" type="button" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form id="form-usuario" class="modal-contenido" novalidate>
+        <div class="field">
+          <label for="u-nombre">Nombre completo</label>
+          <input type="text" id="u-nombre" maxlength="60" placeholder="Nombre del usuario" required>
+        </div>
+        <div class="field">
+          <label for="u-rol">Rol</label>
+          <select id="u-rol" required>
+            <option value="gestor" selected>Gestor de cobranza</option>
+            <option value="supervisor">Supervisor</option>
+          </select>
+        </div>
+        <div class="field" id="u-zona-wrap">
+          <label for="u-zona">Zona asignada</label>
+          <input type="text" id="u-zona" maxlength="60" placeholder="Ej. Iztapalapa Sur">
+        </div>
+        <p id="u-error" class="form-error" role="alert" hidden></p>
+        <button type="submit" class="btn btn-primary btn-block">Guardar usuario</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ BARRA FIJA DE MODO EDICIÓN ============ -->
+  <div id="barra-edicion-fija" class="barra-edicion-fija" hidden>
+    <button type="button" id="btn-barra-cancelar" class="btn btn-ghost">Cancelar</button>
+    <button type="submit" form="form-promesa" class="btn btn-primary">Guardar Cambios</button>
+  </div>
+
+  <!-- ============ TOASTS ============ -->
+  <div id="toast-zone" class="toast-zone" aria-live="polite"><!-- toasts por JS --></div>
+
+  <noscript>
+    <p style="padding:2rem;text-align:center">Esta aplicación necesita JavaScript para funcionar.</p>
+  </noscript>
+
+  <script src="vendor/xlsx.full.min.js"></script>
+  <script src="db.js"></script>
+  <script src="seed.js"></script>
+  <script src="export.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
